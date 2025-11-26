@@ -1,4 +1,3 @@
-// src/api/reviewApi.js
 import client from "./client";
 
 // GET /api/review/pending?skip=&take=
@@ -10,7 +9,7 @@ export async function getPending(skip = 0, take = 50) {
 }
 
 export async function getApproved(skip = 0, take = 50) {
-  const res = await client.get("/api/review/approved", { params: { skip, take } });
+  const res = await client.get("/api/review/Approved", { params: { skip, take } });
   return res.data;
 }
 
