@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import {
   getPending,
   getApproved,
   getRejected,
+  getAllApproved,
   approveCompetence,
   rejectCompetence,
   assignToOther,
@@ -85,6 +87,7 @@ export default function ReviewPage() {
   const [sortField, setSortField] = useState("createdAt");
   const [sortDirection, setSortDirection] = useState("desc");
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [exportLoading, setExportLoading] = useState(false);
 
   async function load(p = page, size = pageSize) {
     setLoading(true);
@@ -201,6 +204,39 @@ export default function ReviewPage() {
     }
   }
 
+  async function handleDownloadExcel() {
+    setExportLoading(true);
+    try {
+      const allCompetences = await getAllApproved();
+      
+      // Prepare data with only Name, Area, Category, Subcategory columns
+      const excelData = allCompetences.map(item => ({
+        Name: item.name || "",
+        Area: item.areaName || "",
+        Category: item.categoryName || "",
+        Subcategory: item.subcategoryName || "",
+      }));
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Approved Competences");
+
+      // Generate filename with current date
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0];
+      const filename = `approved-competences-${dateStr}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export competences to Excel");
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
   function SortableHeader({ field, children }) {
     const isActive = sortField === field;
     return (
@@ -253,6 +289,16 @@ export default function ReviewPage() {
             </select>
           </label>
         </div>
+
+        {status === "approved" && (
+          <button
+            className="btn btn-approve"
+            onClick={handleDownloadExcel}
+            disabled={exportLoading}
+          >
+            {exportLoading ? "Exporting..." : "Download Excel"}
+          </button>
+        )}
       </div>
 
       {loading && <p>Loading...</p>}
