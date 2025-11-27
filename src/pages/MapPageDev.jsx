@@ -159,7 +159,7 @@ export default function MapPage() {
           </form>
 
           {loading && (
-            <p className="muted map-loading-text">Running LLM mapping for all lines…</p>
+            <p className="muted map-loading-text">Running LLM mapping for all lines...</p>
           )}
 
           {!loading && batchResult && <BatchResultList data={batchResult} />}
