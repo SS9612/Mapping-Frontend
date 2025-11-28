@@ -31,10 +31,34 @@ jobs:
         VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
       run: npm run build
       
+    - name: Prepare deployment package
+      working-directory: ./Mapping-Frontend
+      run: |
+        # Create deployment directory with only necessary files
+        mkdir -p deploy
+        # Copy built files
+        cp -r dist deploy/
+        # Copy server files
+        cp server.js deploy/
+        cp web.config deploy/ 2>/dev/null || true
+        # Create a production package.json without devDependencies
+        # Create a simple script to modify package.json
+        cat > modify-pkg.mjs << 'EOF'
+        import { readFileSync, writeFileSync } from 'fs';
+        const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
+        delete pkg.devDependencies;
+        delete pkg.scripts.dev;
+        delete pkg.scripts.preview;
+        delete pkg.scripts.lint;
+        writeFileSync('deploy/package.json', JSON.stringify(pkg, null, 2));
+        EOF
+        node modify-pkg.mjs
+        rm modify-pkg.mjs
+    
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'Mapping-Frontend'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_FRONTEND }}
-        package: ./Mapping-Frontend
+        package: ./Mapping-Frontend/deploy
 
