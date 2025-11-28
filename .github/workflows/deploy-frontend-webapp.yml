@@ -3,8 +3,6 @@ name: Deploy Frontend to Azure Web App
 on:
   push:
     branches: [main]
-    paths:
-      - 'Mapping-Frontend/**'
 
 jobs:
   build-and-deploy:
