@@ -35,8 +35,7 @@ jobs:
         cp -r dist deploy/
         # Copy server files
         cp server.js deploy/
-        cp web.config deploy/ 2>/dev/null || true
-        # Copy package files - Azure will install dependencies
+        # Copy package files
         cp package.json deploy/
         cp package-lock.json deploy/
         # Create a production package.json without devDependencies
@@ -52,6 +51,9 @@ jobs:
         EOF
         node modify-pkg.mjs
         rm modify-pkg.mjs
+        # Create .deployment file to ensure npm install runs
+        echo '[config]' > deploy/.deployment
+        echo 'SCM_DO_BUILD_DURING_DEPLOYMENT=true' >> deploy/.deployment
     
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
