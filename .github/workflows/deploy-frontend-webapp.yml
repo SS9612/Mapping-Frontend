@@ -28,7 +28,7 @@ jobs:
       run: npm run build
       
     - name: Prepare deployment package
-      run: | |
+      run: |
         # Create deployment directory with only necessary files
         mkdir -p deploy
         # Copy built files
