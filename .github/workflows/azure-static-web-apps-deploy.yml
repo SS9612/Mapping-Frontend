@@ -1,0 +1,18 @@
+# DISABLED - Frontend is now deployed to Azure Web App, not Azure Static Web Apps
+# This workflow file exists to prevent Azure Static Web Apps from auto-creating a workflow
+# To completely remove: Delete this file AND disconnect Azure Static Web Apps from GitHub in Azure Portal
+
+name: Azure Static Web Apps CI/CD
+
+# Completely disable all triggers - this workflow will never run automatically
+on:
+  workflow_dispatch:  # Only manual trigger, won't run on push/PR
+
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    if: false  # This job will never run
+    steps:
+      - name: This workflow is disabled
+        run: echo "This workflow is disabled. Use deploy-frontend-webapp.yml instead."
+
