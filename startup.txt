@@ -1,0 +1,6 @@
+# Azure Web App Startup Command
+# Copy this command and paste it in Azure Portal:
+# Configuration -> General settings -> Startup Command
+
+node server.js
+

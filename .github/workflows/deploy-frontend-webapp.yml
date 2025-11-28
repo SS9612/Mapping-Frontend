@@ -36,6 +36,9 @@ jobs:
         # Copy server files
         cp server.js deploy/
         cp web.config deploy/ 2>/dev/null || true
+        # Copy package files - Azure will install dependencies
+        cp package.json deploy/
+        cp package-lock.json deploy/
         # Create a production package.json without devDependencies
         # Create a simple script to modify package.json
         cat > modify-pkg.mjs << 'EOF'
