@@ -143,10 +143,6 @@ export default function MapPage() {
       <div className="map-grid">
         <section className="card map-card">
           <h2>Map competences (one per line)</h2>
-          <p className="muted map-help-inline">
-            Good examples: <em>&quot;Advanced C# development&quot;</em>, <em>&quot;SQL performance tuning&quot;</em>,{" "}
-            <em>&quot;Agile project coordination&quot;</em>.
-          </p>
           <form onSubmit={handleMultiSubmit}>
             <textarea
               className="input"
