@@ -29,10 +29,29 @@ function AppContent() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h2>Mapping LIA</h2>
+        <div className="sidebar-header">
+          <h2>Mapping LIA</h2>
+          <p className="sidebar-subtitle">
+            Competence mapping dashboard
+          </p>
+        </div>
         <nav>
-          <NavLink to="/map">Map competences</NavLink>
-          <NavLink to="/review">Review competences</NavLink>
+          <NavLink
+            to="/map"
+            className={({ isActive }) =>
+              isActive ? "sidebar-link active" : "sidebar-link"
+            }
+          >
+            Map competences
+          </NavLink>
+          <NavLink
+            to="/review"
+            className={({ isActive }) =>
+              isActive ? "sidebar-link active" : "sidebar-link"
+            }
+          >
+            Review competences
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">Logged in as: {username}</div>

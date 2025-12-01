@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { mapSingle, mapLines } from "../api/areaMapperApi";
+import { mapLines } from "../api/areaMapperApi";
 import { SkeletonCard } from "../components/SkeletonLoader";
 import { showError, showSuccess } from "../utils/errorHandler";
 
@@ -79,36 +79,34 @@ function BatchResultList({ data }) {
           </ul>
         </div>
       )}
-      {!!results.length && (
-        <div className="map-batch-list">
-          {results.map((r, idx) => {
-            const percentage = Math.round((r.confidence ?? 0) * 100);
-            return (
-              <div className="map-batch-item" key={`${r.input}-${idx}`}>
-                <div className="map-batch-main">
-                  <div className="competence-name" title={r.input}>{r.input}</div>
-                  <div className="muted map-batch-meta">
-                    <div><strong>Normalized:</strong> {r.normalized || "—"}</div>
-                    <div><strong>Area:</strong> <span className="badge badge-area">{r.area || "—"}</span></div>
+        {!!results.length && (
+          <div className="map-batch-list">
+            {results.map((r, idx) => {
+              const percentage = Math.round((r.confidence ?? 0) * 100);
+              return (
+                <div className="map-batch-item" key={`${r.input}-${idx}`}>
+                  <div className="map-batch-main">
+                    <div className="competence-name" title={r.input}>{r.input}</div>
+                    <div className="muted map-batch-meta">
+                      <div><strong>Normalized:</strong> {r.normalized || "—"}</div>
+                      <div><strong>Area:</strong> <span className="badge badge-area">{r.area || "—"}</span></div>
+                    </div>
+                  </div>
+                  <div className="map-batch-side">
+                    <span className="muted map-batch-side-label">Confidence</span>
+                    <span className="map-batch-side-value">{percentage}%</span>
                   </div>
                 </div>
-                <div className="map-batch-side">
-                  <span className="muted map-batch-side-label">Conf.</span>
-                  <span className="map-batch-side-value">{percentage}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 }
 
 export default function MapPage() {
-  const [input, setInput] = useState("");
   const [multiInput, setMultiInput] = useState("");
-  const [result, setResult] = useState(null);
   const [batchResult, setBatchResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -118,7 +116,6 @@ export default function MapPage() {
     if (!multiInput.trim()) return;
     setLoading(true);
     setError("");
-    setResult(null);
     try {
       const data = await mapLines(multiInput);
       setBatchResult(data);
@@ -136,7 +133,6 @@ export default function MapPage() {
   return (
     <div className="page map-page">
       <h1>Map competences</h1>
-
       {error && (
         <div className="card map-error-card">
           <strong className="map-error-title">Error</strong>
@@ -147,6 +143,10 @@ export default function MapPage() {
       <div className="map-grid">
         <section className="card map-card">
           <h2>Map competences (one per line)</h2>
+          <p className="muted map-help-inline">
+            Good examples: <em>&quot;Advanced C# development&quot;</em>, <em>&quot;SQL performance tuning&quot;</em>,{" "}
+            <em>&quot;Agile project coordination&quot;</em>.
+          </p>
           <form onSubmit={handleMultiSubmit}>
             <textarea
               className="input"

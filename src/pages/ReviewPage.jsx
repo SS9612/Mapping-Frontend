@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 import {
   getPending,
@@ -14,7 +14,6 @@ import { showError, showSuccess } from "../utils/errorHandler";
 
 const TABS = ["pending", "approved", "rejected"];
 
-// Utility functions
 function formatDate(dateString) {
   if (!dateString) return "—";
   const date = new Date(dateString);
@@ -78,20 +77,39 @@ function StatusBadge({ status }) {
 }
 
 export default function ReviewPage() {
-  const [status, setStatus] = useState("pending");
+  const [status, setStatus] = useState(() => {
+    return localStorage.getItem("reviewStatus") || "pending";
+  });
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(() => {
+    const stored = localStorage.getItem("reviewPageSize");
+    return stored ? Number(stored) : 10;
+  });
   const [hasMore, setHasMore] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sortField, setSortField] = useState("createdAt");
-  const [sortDirection, setSortDirection] = useState("desc");
+  const [sortField, setSortField] = useState(() => {
+    return localStorage.getItem("reviewSortField") || "createdAt";
+  });
+  const [sortDirection, setSortDirection] = useState(() => {
+    return localStorage.getItem("reviewSortDirection") || "desc";
+  });
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [exportLoading, setExportLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
+    area: "",
+    category: "",
+    subcategory: "",
+    matchedType: "",
+  });
+  const [rejectModalItem, setRejectModalItem] = useState(null);
+  const [rejectNotes, setRejectNotes] = useState("");
+  const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
-  async function load(p = page, size = pageSize) {
+  const load = useCallback(async (p = page, size = pageSize) => {
     setLoading(true);
     setError("");
     try {
@@ -110,19 +128,45 @@ export default function ReviewPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [status, page, pageSize]);
 
   useEffect(() => {
     setPage(0);
     setExpandedRows(new Set());
+    localStorage.setItem("reviewStatus", status);
   }, [status]);
 
   useEffect(() => {
     load(page, pageSize);
-  }, [status, page, pageSize]); 
+  }, [status, page, pageSize, load]); 
 
-  const sortedItems = useMemo(() => {
-    const sorted = [...items];
+  useEffect(() => {
+    localStorage.setItem("reviewPageSize", String(pageSize));
+  }, [pageSize]);
+
+  useEffect(() => {
+    localStorage.setItem("reviewSortField", sortField);
+    localStorage.setItem("reviewSortDirection", sortDirection);
+  }, [sortField, sortDirection]);
+
+  const filteredAndSortedItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    const filtered = items.filter(item => {
+      const matchesSearch =
+        !q ||
+        (item.name || "").toLowerCase().includes(q) ||
+        (item.normalized || "").toLowerCase().includes(q);
+
+      const matchesArea = !filters.area || item.areaName === filters.area;
+      const matchesCategory = !filters.category || item.categoryName === filters.category;
+      const matchesSubcategory = !filters.subcategory || item.subcategoryName === filters.subcategory;
+      const matchesMatchedType = !filters.matchedType || item.matchedType === filters.matchedType;
+
+      return matchesSearch && matchesArea && matchesCategory && matchesSubcategory && matchesMatchedType;
+    });
+
+    const sorted = [...filtered];
     sorted.sort((a, b) => {
       let aVal, bVal;
       
@@ -153,7 +197,50 @@ export default function ReviewPage() {
     });
     
     return sorted;
-  }, [items, sortField, sortDirection]);
+  }, [items, sortField, sortDirection, searchQuery, filters]);
+
+  const uniqueFilterValues = useMemo(() => {
+    const areas = new Set();
+    const categories = new Set();
+    const subcategories = new Set();
+    const matchedTypes = new Set();
+
+    items.forEach(i => {
+      if (i.areaName) areas.add(i.areaName);
+      if (i.categoryName) categories.add(i.categoryName);
+      if (i.subcategoryName) subcategories.add(i.subcategoryName);
+      if (i.matchedType) matchedTypes.add(i.matchedType);
+    });
+
+    return {
+      areas: Array.from(areas).sort(),
+      categories: Array.from(categories).sort(),
+      subcategories: Array.from(subcategories).sort(),
+      matchedTypes: Array.from(matchedTypes).sort(),
+    };
+  }, [items]);
+
+  const pendingCount = useMemo(
+    () => (status === "pending" ? filteredAndSortedItems.length : 0),
+    [status, filteredAndSortedItems]
+  );
+  const approvedCount = useMemo(
+    () => (status === "approved" ? filteredAndSortedItems.length : 0),
+    [status, filteredAndSortedItems]
+  );
+  const rejectedCount = useMemo(
+    () => (status === "rejected" ? filteredAndSortedItems.length : 0),
+    [status, filteredAndSortedItems]
+  );
+  const averageConfidence = useMemo(() => {
+    if (!filteredAndSortedItems.length) return null;
+    const vals = filteredAndSortedItems
+      .map(i => i.confidence)
+      .filter(c => c != null);
+    if (!vals.length) return null;
+    const sum = vals.reduce((acc, c) => acc + c, 0);
+    return sum / vals.length;
+  }, [filteredAndSortedItems]);
 
   function handleSort(field) {
     if (sortField === field) {
@@ -184,16 +271,30 @@ export default function ReviewPage() {
     }
   }
 
-  async function handleReject(item) {
-    const notes = window.prompt("Rejection notes:");
-    if (!notes) return;
+  function openRejectModal(item) {
+    setRejectModalItem(item);
+    setRejectNotes("");
+  }
 
+  function closeRejectModal() {
+    if (rejectSubmitting) return;
+    setRejectModalItem(null);
+    setRejectNotes("");
+  }
+
+  async function confirmReject() {
+    if (!rejectModalItem || !rejectNotes.trim()) return;
+
+    setRejectSubmitting(true);
     try {
-      await rejectCompetence(item.competenceId, notes);
+      await rejectCompetence(rejectModalItem.competenceId, rejectNotes.trim());
       showSuccess("Competence rejected successfully");
       await load();
+      closeRejectModal();
     } catch (err) {
       showError(err, "Failed to reject competence");
+    } finally {
+      setRejectSubmitting(false);
     }
   }
 
@@ -211,8 +312,7 @@ export default function ReviewPage() {
     setExportLoading(true);
     try {
       const allCompetences = await getAllApproved();
-      
-      // Prepare data with only Name, Area, Category, Subcategory columns
+
       const excelData = allCompetences.map(item => ({
         Name: item.name || "",
         Area: item.areaName || "",
@@ -220,17 +320,14 @@ export default function ReviewPage() {
         Subcategory: item.subcategoryName || "",
       }));
 
-      // Create workbook and worksheet
       const ws = XLSX.utils.json_to_sheet(excelData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Approved Competences");
 
-      // Generate filename with current date
       const today = new Date();
       const dateStr = today.toISOString().split('T')[0];
       const filename = `approved-competences-${dateStr}.xlsx`;
 
-      // Download file
       XLSX.writeFile(wb, filename);
       showSuccess("Excel file downloaded successfully");
     } catch (err) {
@@ -261,6 +358,27 @@ export default function ReviewPage() {
     <div className="page review-page">
       <h1>Review Competences</h1>
 
+      <div className="review-dashboard">
+        <div className="card review-kpi-card">
+          <div className="review-kpi-label">Pending (this view)</div>
+          <div className="review-kpi-value">{pendingCount}</div>
+        </div>
+        <div className="card review-kpi-card">
+          <div className="review-kpi-label">Approved (this view)</div>
+          <div className="review-kpi-value">{approvedCount}</div>
+        </div>
+        <div className="card review-kpi-card">
+          <div className="review-kpi-label">Rejected (this view)</div>
+          <div className="review-kpi-value">{rejectedCount}</div>
+        </div>
+        <div className="card review-kpi-card">
+          <div className="review-kpi-label">Avg. confidence</div>
+          <div className="review-kpi-value">
+            {averageConfidence == null ? "—" : `${Math.round(averageConfidence * 100)}%`}
+          </div>
+        </div>
+      </div>
+
       <div className="review-toolbar">
         <div className="review-tabs">
           {TABS.map(t => (
@@ -272,6 +390,67 @@ export default function ReviewPage() {
               {t.toUpperCase()}
             </button>
           ))}
+        </div>
+
+        <div className="review-search">
+          <input
+            type="search"
+            className="input review-search-input"
+            placeholder="Search by name or normalized…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="review-filters muted">
+          <label>
+            Area
+            <select
+              value={filters.area}
+              onChange={e => setFilters(prev => ({ ...prev, area: e.target.value }))}
+            >
+              <option value="">All</option>
+              {uniqueFilterValues.areas.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Category
+            <select
+              value={filters.category}
+              onChange={e => setFilters(prev => ({ ...prev, category: e.target.value }))}
+            >
+              <option value="">All</option>
+              {uniqueFilterValues.categories.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Subcategory
+            <select
+              value={filters.subcategory}
+              onChange={e => setFilters(prev => ({ ...prev, subcategory: e.target.value }))}
+            >
+              <option value="">All</option>
+              {uniqueFilterValues.subcategories.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Matched
+            <select
+              value={filters.matchedType}
+              onChange={e => setFilters(prev => ({ ...prev, matchedType: e.target.value }))}
+            >
+              <option value="">All</option>
+              {uniqueFilterValues.matchedTypes.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="review-page-size">
@@ -321,7 +500,7 @@ export default function ReviewPage() {
       {!loading && !error && (
         status === 'pending' ? (
           <div className="review-cards">
-            {sortedItems.map(item => {
+            {filteredAndSortedItems.map(item => {
               const notes = item.reviewNotes ?? "";
 
               return (
@@ -345,7 +524,7 @@ export default function ReviewPage() {
                     </div>
                     <div className="actions review-card-actions">
                       <button className="btn btn-approve" onClick={() => handleApprove(item)}>Approve</button>
-                      <button className="btn btn-reject" onClick={() => handleReject(item)}>Reject</button>
+                      <button className="btn btn-reject" onClick={() => openRejectModal(item)}>Reject</button>
                       <button className="btn btn-other" onClick={() => handleAssignOther(item)}>Other</button>
                     </div>
                   </div>
@@ -365,7 +544,7 @@ export default function ReviewPage() {
               );
             })}
 
-            {sortedItems.length === 0 && (
+            {filteredAndSortedItems.length === 0 && (
               <div className="card">No competences found.</div>
             )}
           </div>
@@ -388,7 +567,7 @@ export default function ReviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedItems.map(item => {
+                {filteredAndSortedItems.map(item => {
                   const notes = item.reviewNotes ?? "";
                   const isExpanded = expandedRows.has(item.competenceId);
                   const short = notes.length > 100 ? notes.slice(0, 100) + '…' : notes;
@@ -427,7 +606,7 @@ export default function ReviewPage() {
                     </tr>
                   );
                 })}
-                {sortedItems.length === 0 && (
+                {filteredAndSortedItems.length === 0 && (
                   <tr>
                     <td colSpan={status === "approved" || status === "rejected" ? 11 : 10}>No competences found.</td>
                   </tr>
@@ -438,7 +617,6 @@ export default function ReviewPage() {
         )
       )}
 
-      {/* Pagination controls */}
       <div className="review-pagination">
         <button 
           className="btn" 
@@ -456,11 +634,10 @@ export default function ReviewPage() {
           Next
         </button>
         <span className="muted review-pagination-summary">
-          Showing {sortedItems.length} {sortedItems.length === 1 ? 'item' : 'items'}
+          Showing {filteredAndSortedItems.length} {filteredAndSortedItems.length === 1 ? 'item' : 'items'}
         </span>
       </div>
 
-      {/* Notes modal */}
       {selectedNote && (
         <div className="note-modal-overlay" onClick={() => setSelectedNote(null)}>
           <div className="note-modal-content" onClick={e => e.stopPropagation()}>
@@ -470,6 +647,63 @@ export default function ReviewPage() {
             </div>
             <div className="note-modal-body">{selectedNote}</div>
           </div>
+        </div>
+      )}
+
+      {rejectModalItem && (
+        <div className="note-modal-overlay" onClick={closeRejectModal} aria-modal="true" role="dialog">
+          <div className="note-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="note-modal-header">
+              <strong>Reject competence</strong>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={closeRejectModal}
+                disabled={rejectSubmitting}
+                aria-label="Close reject dialog"
+              >
+                Close
+              </button>
+            </div>
+            <div className="note-modal-body">
+              <p className="muted">
+                Please provide a short explanation for rejecting{" "}
+                <strong>{rejectModalItem.name}</strong> so others understand the decision.
+              </p>
+              <textarea
+                className="input"
+                rows={4}
+                value={rejectNotes}
+                onChange={e => setRejectNotes(e.target.value)}
+                placeholder="Example: Overlaps with existing competence in Area X / Not relevant for this program / Too generic…"
+              />
+              <div className="actions" style={{ marginTop: "0.75rem" }}>
+                <button
+                  type="button"
+                  className="btn btn-reject"
+                  onClick={confirmReject}
+                  disabled={rejectSubmitting || !rejectNotes.trim()}
+                >
+                  {rejectSubmitting ? "Rejecting…" : "Confirm reject"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={closeRejectModal}
+                  disabled={rejectSubmitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="review-loading-overlay" aria-hidden="true">
+          <div className="review-loading-spinner" />
+          <div className="review-loading-text muted">Loading competences…</div>
         </div>
       )}
     </div>

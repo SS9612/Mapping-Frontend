@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +26,8 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, navigate]);
 
+  const [showPassword, setShowPassword] = useState(false);
+
   async function onSubmit(data) {
     try {
       const response = await login(data.username, data.password);
@@ -42,7 +44,10 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="login-container">
         <h1>Mapping LIA</h1>
-        <h2>Login</h2>
+        <h2>Staff login</h2>
+        <p className="login-subtitle">
+          Sigma Technologies competence mapping dashboard
+        </p>
         <form onSubmit={handleSubmit(onSubmit)} className="login-form">
           <div className="form-group">
             <label htmlFor="username">Username</label>
@@ -60,18 +65,29 @@ export default function LoginPage() {
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              {...register("password")}
-              disabled={isSubmitting}
-              className={errors.password ? "error" : ""}
-            />
+            <div className="password-field">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                {...register("password")}
+                disabled={isSubmitting}
+                className={errors.password ? "error" : ""}
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost password-toggle"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
             {errors.password && (
               <span className="form-error">{errors.password.message}</span>
             )}
           </div>
-          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+          <button type="submit" className="btn btn-primary btn-lg login-submit" disabled={isSubmitting}>
             {isSubmitting ? "Logging in..." : "Login"}
           </button>
         </form>
