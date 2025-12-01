@@ -63,6 +63,17 @@
   cursor: not-allowed;
 }
 
+.form-error {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.login-form input.error {
+  border-color: #dc3545;
+}
+
 .login-error {
   padding: 0.75rem;
   background-color: #fee;

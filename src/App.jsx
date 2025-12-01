@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { CompetenceProvider } from "./contexts/CompetenceContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import MapPage from "./pages/MapPageDev";
 import ReviewPage from "./pages/ReviewPage";
 import LoginPage from "./pages/LoginPage";
@@ -65,10 +69,15 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <CompetenceProvider>
+            <AppContent />
+            <ToastContainer />
+          </CompetenceProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

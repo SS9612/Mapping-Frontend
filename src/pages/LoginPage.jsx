@@ -1,16 +1,24 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { login } from "../api/authApi";
+import { showError, showSuccess } from "../utils/errorHandler";
+import { loginSchema } from "../schemas/loginSchema";
 import "./LoginPage.css";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login: authLogin, isAuthenticated } = useAuth();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+    mode: "onBlur",
+  });
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -18,19 +26,15 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
+  async function onSubmit(data) {
     try {
-      const response = await login(username, password);
+      const response = await login(data.username, data.password);
       authLogin(response.token, response.username);
+      showSuccess("Login successful!");
       navigate("/review");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed. Please check your credentials.");
-    } finally {
-      setLoading(false);
+      const errorMsg = err.response?.data?.message || err.response?.data?.errors?.[0] || "Login failed. Please check your credentials.";
+      showError(err, errorMsg);
     }
   }
 
@@ -39,33 +43,36 @@ export default function LoginPage() {
       <div className="login-container">
         <h1>Mapping LIA</h1>
         <h2>Login</h2>
-        <form onSubmit={handleSubmit} className="login-form">
+        <form onSubmit={handleSubmit(onSubmit)} className="login-form">
           <div className="form-group">
             <label htmlFor="username">Username</label>
             <input
               id="username"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
+              {...register("username")}
               autoFocus
-              disabled={loading}
+              disabled={isSubmitting}
+              className={errors.username ? "error" : ""}
             />
+            {errors.username && (
+              <span className="form-error">{errors.username.message}</span>
+            )}
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input
               id="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
+              {...register("password")}
+              disabled={isSubmitting}
+              className={errors.password ? "error" : ""}
             />
+            {errors.password && (
+              <span className="form-error">{errors.password.message}</span>
+            )}
           </div>
-          {error && <div className="login-error">{error}</div>}
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
+          <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? "Logging in..." : "Login"}
           </button>
         </form>
       </div>

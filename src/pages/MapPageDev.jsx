@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { mapSingle, mapLines } from "../api/areaMapperApi";
+import { SkeletonCard } from "../components/SkeletonLoader";
+import { showError, showSuccess } from "../utils/errorHandler";
 
 function SingleResultCard({ data }) {
   if (!data) return null;
@@ -120,9 +122,11 @@ export default function MapPage() {
     try {
       const data = await mapLines(multiInput);
       setBatchResult(data);
+      showSuccess("Competences mapped successfully");
     } catch (err) {
-      console.error(err);
-      setError("Failed to map lines. Please try again.");
+      const errorMsg = "Failed to map lines. Please try again.";
+      setError(errorMsg);
+      showError(err, errorMsg);
       setBatchResult(null);
     } finally {
       setLoading(false);
@@ -159,7 +163,10 @@ export default function MapPage() {
           </form>
 
           {loading && (
-            <p className="muted map-loading-text">Running LLM mapping for all lines...</p>
+            <div>
+              <p className="muted map-loading-text">Running LLM mapping for all lines...</p>
+              <SkeletonCard />
+            </div>
           )}
 
           {!loading && batchResult && <BatchResultList data={batchResult} />}

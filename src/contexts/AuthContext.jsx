@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { isValidToken, isTokenExpired } from "../utils/tokenUtils";
 
 const AuthContext = createContext(null);
 
@@ -14,8 +15,25 @@ export function AuthProvider({ children }) {
     const storedUsername = localStorage.getItem("username");
     
     if (token && storedUsername) {
-      setIsAuthenticated(true);
-      setUsername(storedUsername);
+      // Validate token before setting authenticated state
+      if (isValidToken(token)) {
+        if (isTokenExpired(token)) {
+          // Token is expired or about to expire, clear it
+          localStorage.removeItem("token");
+          localStorage.removeItem("username");
+          setIsAuthenticated(false);
+          setUsername("");
+        } else {
+          setIsAuthenticated(true);
+          setUsername(storedUsername);
+        }
+      } else {
+        // Invalid token, clear it
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        setIsAuthenticated(false);
+        setUsername("");
+      }
     }
     setLoading(false);
   }, []);

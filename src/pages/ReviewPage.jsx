@@ -9,6 +9,8 @@ import {
   rejectCompetence,
   assignToOther,
 } from "../api/reviewApi";
+import { SkeletonCard, SkeletonTable } from "../components/SkeletonLoader";
+import { showError, showSuccess } from "../utils/errorHandler";
 
 const TABS = ["pending", "approved", "rejected"];
 
@@ -102,8 +104,9 @@ export default function ReviewPage() {
       setItems(data || []);
       setHasMore((data && data.length) >= size);
     } catch (err) {
-      console.error(err);
-      setError("Failed to load competences");
+      const errorMsg = "Failed to load competences";
+      setError(errorMsg);
+      showError(err, errorMsg);
     } finally {
       setLoading(false);
     }
@@ -174,10 +177,10 @@ export default function ReviewPage() {
   async function handleApprove(item) {
     try {
       await approveCompetence(item.competenceId, "Approved via UI");
+      showSuccess("Competence approved successfully");
       await load();
     } catch (err) {
-      console.error(err);
-      alert("Failed to approve competence");
+      showError(err, "Failed to approve competence");
     }
   }
 
@@ -187,20 +190,20 @@ export default function ReviewPage() {
 
     try {
       await rejectCompetence(item.competenceId, notes);
+      showSuccess("Competence rejected successfully");
       await load();
     } catch (err) {
-      console.error(err);
-      alert("Failed to reject competence");
+      showError(err, "Failed to reject competence");
     }
   }
 
   async function handleAssignOther(item) {
     try {
       await assignToOther(item.competenceId, "Assigned to Other via UI");
+      showSuccess("Competence assigned to 'Other' area successfully");
       await load();
     } catch (err) {
-      console.error(err);
-      alert("Failed to assign competence to Other");
+      showError(err, "Failed to assign competence to Other");
     }
   }
 
@@ -229,9 +232,9 @@ export default function ReviewPage() {
 
       // Download file
       XLSX.writeFile(wb, filename);
+      showSuccess("Excel file downloaded successfully");
     } catch (err) {
-      console.error(err);
-      alert("Failed to export competences to Excel");
+      showError(err, "Failed to export competences to Excel");
     } finally {
       setExportLoading(false);
     }
@@ -301,8 +304,19 @@ export default function ReviewPage() {
         )}
       </div>
 
-      {loading && <p>Loading...</p>}
       {error && <p className="review-error-text">{error}</p>}
+
+      {loading && (
+        status === 'pending' ? (
+          <div className="review-cards">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
+        ) : (
+          <SkeletonTable rows={5} columns={status === "approved" || status === "rejected" ? 11 : 10} />
+        )
+      )}
 
       {!loading && !error && (
         status === 'pending' ? (
