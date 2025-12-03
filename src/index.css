@@ -705,6 +705,24 @@ tbody tr:hover { background: #f1f5f9; }
 .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.85rem; border-radius: 4px; }
 .btn-lg { padding: 0.75rem 1.1rem; font-size: 1.05rem; border-radius: 8px; }
 
+.btn-ghost {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
+.btn-ghost:hover {
+  background: #f8fafc;
+  color: #334155;
+  transform: none;
+}
+
+.btn-ghost:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.15);
+}
+
 .confidence-badge {
   display: inline-flex;
   align-items: center;

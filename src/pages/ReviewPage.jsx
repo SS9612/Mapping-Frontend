@@ -1,15 +1,15 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 import {
-  getPending,
-  getApproved,
-  getRejected,
   getAllApproved,
   getAllPending,
   getAllRejected,
   approveCompetence,
   rejectCompetence,
   assignToOther,
+  getMetadata,
+  updateCategorization,
+  getCompetence,
 } from "../api/reviewApi";
 import { SkeletonCard, SkeletonTable } from "../components/SkeletonLoader";
 import { showError, showSuccess } from "../utils/errorHandler";
@@ -109,6 +109,13 @@ export default function ReviewPage() {
   const [rejectModalItem, setRejectModalItem] = useState(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
+  const [categorizationModalItem, setCategorizationModalItem] = useState(null);
+  const [metadata, setMetadata] = useState(null);
+  const [categorizationLoading, setCategorizationLoading] = useState(false);
+  const [categorizationSubmitting, setCategorizationSubmitting] = useState(false);
+  const [selectedAreaId, setSelectedAreaId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -321,6 +328,64 @@ export default function ReviewPage() {
       showError(err, "Failed to assign competence to Other");
     }
   }
+
+  async function openCategorizationModal(item) {
+    setCategorizationLoading(true);
+    try {
+      // Load metadata if not already loaded
+      if (!metadata) {
+        const meta = await getMetadata();
+        setMetadata(meta);
+      }
+      
+      // Get full competence details to get IDs
+      const detail = await getCompetence(item.competenceId);
+      setCategorizationModalItem(detail);
+      setSelectedAreaId(detail.areaId || null);
+      setSelectedCategoryId(detail.categoryId || null);
+      setSelectedSubcategoryId(detail.subcategoryId || null);
+    } catch (err) {
+      showError(err, "Failed to load competence details");
+    } finally {
+      setCategorizationLoading(false);
+    }
+  }
+
+  function closeCategorizationModal() {
+    if (categorizationSubmitting) return;
+    setCategorizationModalItem(null);
+    setSelectedAreaId(null);
+    setSelectedCategoryId(null);
+    setSelectedSubcategoryId(null);
+  }
+
+  async function confirmCategorizationUpdate() {
+    if (!categorizationModalItem || !selectedAreaId) return;
+
+    setCategorizationSubmitting(true);
+    try {
+      await updateCategorization(
+        categorizationModalItem.competenceId,
+        selectedAreaId,
+        selectedCategoryId,
+        selectedSubcategoryId
+      );
+      showSuccess("Categorization updated successfully");
+      await load();
+      closeCategorizationModal();
+    } catch (err) {
+      showError(err, "Failed to update categorization");
+    } finally {
+      setCategorizationSubmitting(false);
+    }
+  }
+
+  // Load metadata on mount
+  useEffect(() => {
+    getMetadata().then(setMetadata).catch(err => {
+      console.error("Failed to load metadata:", err);
+    });
+  }, []);
 
   async function handleDownloadExcel() {
     setExportLoading(true);
@@ -537,6 +602,7 @@ export default function ReviewPage() {
                       </div>
                     </div>
                     <div className="actions review-card-actions">
+                      <button className="btn btn-sm" onClick={() => openCategorizationModal(item)}>Edit Categorization</button>
                       <button className="btn btn-approve" onClick={() => handleApprove(item)}>Approve</button>
                       <button className="btn btn-reject" onClick={() => openRejectModal(item)}>Reject</button>
                       <button className="btn btn-other" onClick={() => handleAssignOther(item)}>Other</button>
@@ -726,6 +792,122 @@ export default function ReviewPage() {
         <div className="review-loading-overlay" aria-hidden="true">
           <div className="review-loading-spinner" />
           <div className="review-loading-text muted">Loading competences…</div>
+        </div>
+      )}
+
+      {categorizationModalItem && (
+        <div className="note-modal-overlay" onClick={closeCategorizationModal} aria-modal="true" role="dialog">
+          <div className="note-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="note-modal-header">
+              <strong>Edit Categorization</strong>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={closeCategorizationModal}
+                disabled={categorizationSubmitting}
+                aria-label="Close categorization editor"
+              >
+                Close
+              </button>
+            </div>
+            <div className="note-modal-body">
+              {categorizationLoading ? (
+                <div className="muted">Loading...</div>
+              ) : metadata ? (
+                <>
+                  <p className="muted" style={{ marginBottom: "1rem" }}>
+                    Update the categorization for <strong>{categorizationModalItem.name}</strong>.
+                    The competence will remain in pending status.
+                  </p>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                    <label>
+                      <strong>Area *</strong>
+                      <select
+                        className="input"
+                        value={selectedAreaId || ""}
+                        onChange={(e) => {
+                          const newAreaId = e.target.value ? e.target.value : null;
+                          setSelectedAreaId(newAreaId);
+                          // Reset category and subcategory when area changes
+                          setSelectedCategoryId(null);
+                          setSelectedSubcategoryId(null);
+                        }}
+                        disabled={categorizationSubmitting}
+                      >
+                        <option value="">Select an area...</option>
+                        {metadata.areas.map(area => (
+                          <option key={area.areaId} value={area.areaId}>{area.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <strong>Category</strong>
+                      <select
+                        className="input"
+                        value={selectedCategoryId || ""}
+                        onChange={(e) => {
+                          const newCategoryId = e.target.value ? e.target.value : null;
+                          setSelectedCategoryId(newCategoryId);
+                          // Reset subcategory when category changes
+                          setSelectedSubcategoryId(null);
+                        }}
+                        disabled={categorizationSubmitting || !selectedAreaId}
+                      >
+                        <option value="">None</option>
+                        {metadata.categories
+                          .filter(cat => cat.areaId === selectedAreaId)
+                          .map(category => (
+                            <option key={category.categoryId} value={category.categoryId}>{category.name}</option>
+                          ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <strong>Subcategory</strong>
+                      <select
+                        className="input"
+                        value={selectedSubcategoryId || ""}
+                        onChange={(e) => {
+                          setSelectedSubcategoryId(e.target.value ? e.target.value : null);
+                        }}
+                        disabled={categorizationSubmitting || !selectedCategoryId}
+                      >
+                        <option value="">None</option>
+                        {metadata.subcategories
+                          .filter(sub => sub.categoryId === selectedCategoryId)
+                          .map(subcategory => (
+                            <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>{subcategory.name}</option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="actions" style={{ marginTop: "1rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-approve"
+                      onClick={confirmCategorizationUpdate}
+                      disabled={categorizationSubmitting || !selectedAreaId}
+                    >
+                      {categorizationSubmitting ? "Saving…" : "Save Changes"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={closeCategorizationModal}
+                      disabled={categorizationSubmitting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="muted">Loading metadata...</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

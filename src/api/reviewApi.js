@@ -112,3 +112,19 @@ export async function assignToOther(id, reviewNotes) {
   });
   return res.data;
 }
+
+// GET /api/review/metadata
+export async function getMetadata() {
+  const res = await client.get("/api/review/metadata");
+  return res.data;
+}
+
+// PATCH /api/review/{id}/update-categorization
+export async function updateCategorization(competenceId, areaId, categoryId, subcategoryId) {
+  const res = await client.patch(`/api/review/${competenceId}/update-categorization`, {
+    areaId,
+    categoryId: categoryId || null,
+    subcategoryId: subcategoryId || null,
+  });
+  return res.data;
+}
