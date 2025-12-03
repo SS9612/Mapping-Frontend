@@ -5,6 +5,8 @@ import {
   getApproved,
   getRejected,
   getAllApproved,
+  getAllPending,
+  getAllRejected,
   approveCompetence,
   rejectCompetence,
   assignToOther,
@@ -86,7 +88,6 @@ export default function ReviewPage() {
     const stored = localStorage.getItem("reviewPageSize");
     return stored ? Number(stored) : 10;
   });
-  const [hasMore, setHasMore] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -109,18 +110,16 @@ export default function ReviewPage() {
   const [rejectNotes, setRejectNotes] = useState("");
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
-  const load = useCallback(async (p = page, size = pageSize) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const skip = p * size;
       let data;
-      if (status === "pending") data = await getPending(skip, size);
-      else if (status === "approved") data = await getApproved(skip, size);
-      else data = await getRejected(skip, size);
+      if (status === "pending") data = await getAllPending();
+      else if (status === "approved") data = await getAllApproved();
+      else data = await getAllRejected();
 
       setItems(data || []);
-      setHasMore((data && data.length) >= size);
     } catch (err) {
       const errorMsg = "Failed to load competences";
       setError(errorMsg);
@@ -128,17 +127,14 @@ export default function ReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, page, pageSize]);
+  }, [status]);
 
   useEffect(() => {
     setPage(0);
     setExpandedRows(new Set());
     localStorage.setItem("reviewStatus", status);
-  }, [status]);
-
-  useEffect(() => {
-    load(page, pageSize);
-  }, [status, page, pageSize, load]); 
+    load();
+  }, [status, load]); 
 
   useEffect(() => {
     localStorage.setItem("reviewPageSize", String(pageSize));
@@ -148,6 +144,11 @@ export default function ReviewPage() {
     localStorage.setItem("reviewSortField", sortField);
     localStorage.setItem("reviewSortDirection", sortDirection);
   }, [sortField, sortDirection]);
+
+  // Reset to page 0 when filters or search change
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, filters.area, filters.category, filters.subcategory, filters.matchedType]);
 
   const filteredAndSortedItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -198,6 +199,19 @@ export default function ReviewPage() {
     
     return sorted;
   }, [items, sortField, sortDirection, searchQuery, filters]);
+
+  // Paginate the filtered and sorted items
+  const paginatedItems = useMemo(() => {
+    const start = page * pageSize;
+    const end = start + pageSize;
+    return filteredAndSortedItems.slice(start, end);
+  }, [filteredAndSortedItems, page, pageSize]);
+
+  // Calculate hasMore based on filtered/sorted items
+  const hasMore = useMemo(() => {
+    const start = page * pageSize;
+    return start + pageSize < filteredAndSortedItems.length;
+  }, [filteredAndSortedItems.length, page, pageSize]);
 
   const uniqueFilterValues = useMemo(() => {
     const areas = new Set();
@@ -500,7 +514,7 @@ export default function ReviewPage() {
       {!loading && !error && (
         status === 'pending' ? (
           <div className="review-cards">
-            {filteredAndSortedItems.map(item => {
+            {paginatedItems.map(item => {
               const notes = item.reviewNotes ?? "";
 
               return (
@@ -544,8 +558,11 @@ export default function ReviewPage() {
               );
             })}
 
-            {filteredAndSortedItems.length === 0 && (
+            {paginatedItems.length === 0 && filteredAndSortedItems.length === 0 && (
               <div className="card">No competences found.</div>
+            )}
+            {paginatedItems.length === 0 && filteredAndSortedItems.length > 0 && (
+              <div className="card">No competences found on this page. Try adjusting filters or going to a different page.</div>
             )}
           </div>
         ) : (
@@ -567,7 +584,7 @@ export default function ReviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAndSortedItems.map(item => {
+                {paginatedItems.map(item => {
                   const notes = item.reviewNotes ?? "";
                   const isExpanded = expandedRows.has(item.competenceId);
                   const short = notes.length > 100 ? notes.slice(0, 100) + '…' : notes;
@@ -606,9 +623,14 @@ export default function ReviewPage() {
                     </tr>
                   );
                 })}
-                {filteredAndSortedItems.length === 0 && (
+                {paginatedItems.length === 0 && filteredAndSortedItems.length === 0 && (
                   <tr>
                     <td colSpan={status === "approved" || status === "rejected" ? 11 : 10}>No competences found.</td>
+                  </tr>
+                )}
+                {paginatedItems.length === 0 && filteredAndSortedItems.length > 0 && (
+                  <tr>
+                    <td colSpan={status === "approved" || status === "rejected" ? 11 : 10}>No competences found on this page. Try adjusting filters or going to a different page.</td>
                   </tr>
                 )}
               </tbody>
@@ -634,7 +656,7 @@ export default function ReviewPage() {
           Next
         </button>
         <span className="muted review-pagination-summary">
-          Showing {filteredAndSortedItems.length} {filteredAndSortedItems.length === 1 ? 'item' : 'items'}
+          Showing {paginatedItems.length} of {filteredAndSortedItems.length} {filteredAndSortedItems.length === 1 ? 'item' : 'items'}
         </span>
       </div>
 

@@ -41,6 +41,48 @@ export async function getRejected(skip = 0, take = 50) {
   return res.data;
 }
 
+// Get all pending competences in batches
+export async function getAllPending() {
+  const allCompetences = [];
+  let skip = 0;
+  const take = 5000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const batch = await getPending(skip, take);
+    if (batch && batch.length > 0) {
+      allCompetences.push(...batch);
+      skip += batch.length;
+      hasMore = batch.length === take;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allCompetences;
+}
+
+// Get all rejected competences in batches
+export async function getAllRejected() {
+  const allCompetences = [];
+  let skip = 0;
+  const take = 5000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const batch = await getRejected(skip, take);
+    if (batch && batch.length > 0) {
+      allCompetences.push(...batch);
+      skip += batch.length;
+      hasMore = batch.length === take;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allCompetences;
+}
+
 // GET /api/review/{id}
 export async function getCompetence(id) {
   const res = await client.get(`/api/review/${id}`);
