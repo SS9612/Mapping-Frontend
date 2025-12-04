@@ -959,3 +959,72 @@ td[title] {
   transform: none;
   box-shadow: 0 1px 0 rgba(0,0,0,0.06);
 }
+
+.review-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.review-bulk-count {
+  font-size: 0.9rem;
+  margin-right: 0.5rem;
+}
+
+.review-card-clickable {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.review-card-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.1);
+}
+
+.review-card-selected {
+  border: 2px solid #3b82f6;
+  background: #eff6ff;
+}
+
+.review-table-checkbox {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.review-table-checkbox-header {
+  width: 40px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.review-table-checkbox-cell {
+  width: 40px;
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.review-table-selected-indicator {
+  color: #3b82f6;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.review-table-row-clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.review-table-row-clickable:hover {
+  background: #f1f5f9 !important;
+}
+
+.review-table-row-selected {
+  background: #eff6ff !important;
+}
+
+.review-table-row-selected:hover {
+  background: #dbeafe !important;
+}

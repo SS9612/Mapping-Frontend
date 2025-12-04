@@ -116,6 +116,8 @@ export default function ReviewPage() {
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(null);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,6 +141,7 @@ export default function ReviewPage() {
   useEffect(() => {
     setPage(0);
     setExpandedRows(new Set());
+    setSelectedItems(new Set());
     localStorage.setItem("reviewStatus", status);
     load();
   }, [status, load]); 
@@ -155,6 +158,7 @@ export default function ReviewPage() {
   // Reset to page 0 when filters or search change
   useEffect(() => {
     setPage(0);
+    setSelectedItems(new Set());
   }, [searchQuery, filters.area, filters.category, filters.subcategory, filters.matchedType]);
 
   const filteredAndSortedItems = useMemo(() => {
@@ -306,6 +310,12 @@ export default function ReviewPage() {
   async function confirmReject() {
     if (!rejectModalItem || !rejectNotes.trim()) return;
 
+    // Check if this is a bulk reject
+    if (rejectModalItem.competenceId === null && selectedItems.size > 0) {
+      await confirmBulkReject();
+      return;
+    }
+
     setRejectSubmitting(true);
     try {
       await rejectCompetence(rejectModalItem.competenceId, rejectNotes.trim());
@@ -326,6 +336,75 @@ export default function ReviewPage() {
       await load();
     } catch (err) {
       showError(err, "Failed to assign competence to Other");
+    }
+  }
+
+  function toggleItemSelection(competenceId) {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(competenceId)) {
+      newSelected.delete(competenceId);
+    } else {
+      newSelected.add(competenceId);
+    }
+    setSelectedItems(newSelected);
+  }
+
+  function toggleSelectAll() {
+    if (selectedItems.size === paginatedItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(paginatedItems.map(item => item.competenceId)));
+    }
+  }
+
+  async function handleBulkApprove() {
+    if (selectedItems.size === 0) return;
+    
+    const count = selectedItems.size;
+    if (!window.confirm(`Approve ${count} ${count === 1 ? 'competence' : 'competences'}?`)) {
+      return;
+    }
+
+    setBulkActionLoading(true);
+    try {
+      const promises = Array.from(selectedItems).map(id =>
+        approveCompetence(id, `Bulk approved via UI (${count} items)`)
+      );
+      await Promise.all(promises);
+      showSuccess(`Successfully approved ${count} ${count === 1 ? 'competence' : 'competences'}`);
+      setSelectedItems(new Set());
+      await load();
+    } catch (err) {
+      showError(err, `Failed to approve some competences`);
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }
+
+  function openBulkRejectModal() {
+    if (selectedItems.size === 0) return;
+    setRejectNotes("");
+    setRejectModalItem({ competenceId: null, name: `${selectedItems.size} competences` });
+  }
+
+  async function confirmBulkReject() {
+    if (selectedItems.size === 0 || !rejectNotes.trim()) return;
+
+    setRejectSubmitting(true);
+    try {
+      const count = selectedItems.size;
+      const promises = Array.from(selectedItems).map(id =>
+        rejectCompetence(id, rejectNotes.trim())
+      );
+      await Promise.all(promises);
+      showSuccess(`Successfully rejected ${count} ${count === 1 ? 'competence' : 'competences'}`);
+      setSelectedItems(new Set());
+      await load();
+      closeRejectModal();
+    } catch (err) {
+      showError(err, "Failed to reject some competences");
+    } finally {
+      setRejectSubmitting(false);
     }
   }
 
@@ -560,6 +639,35 @@ export default function ReviewPage() {
             {exportLoading ? "Exporting..." : "Download Excel"}
           </button>
         )}
+
+        {status === "pending" && selectedItems.size > 0 && (
+          <div className="review-bulk-actions">
+            <span className="muted review-bulk-count">
+              {selectedItems.size} {selectedItems.size === 1 ? 'item' : 'items'} selected
+            </span>
+            <button
+              className="btn btn-approve btn-sm"
+              onClick={handleBulkApprove}
+              disabled={bulkActionLoading}
+            >
+              {bulkActionLoading ? "Approving..." : `Approve ${selectedItems.size}`}
+            </button>
+            <button
+              className="btn btn-reject btn-sm"
+              onClick={openBulkRejectModal}
+              disabled={bulkActionLoading}
+            >
+              Reject {selectedItems.size}
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setSelectedItems(new Set())}
+              disabled={bulkActionLoading}
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <p className="review-error-text">{error}</p>}
@@ -582,8 +690,27 @@ export default function ReviewPage() {
             {paginatedItems.map(item => {
               const notes = item.reviewNotes ?? "";
 
+              const isSelected = selectedItems.has(item.competenceId);
+
               return (
-                <div className="review-card" key={item.competenceId}>
+                <div 
+                  className={`review-card ${isSelected ? 'review-card-selected' : ''} review-card-clickable`} 
+                  key={item.competenceId}
+                  onClick={(e) => {
+                    // Don't toggle if clicking on buttons or links
+                    if (e.target.closest('button') || e.target.closest('a')) return;
+                    toggleItemSelection(item.competenceId);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleItemSelection(item.competenceId);
+                    }
+                  }}
+                  aria-label={`Select ${item.name}`}
+                >
                   <div className="card-left card">
                     <div>
                       <div className="competence-name">{item.name}</div>
@@ -636,6 +763,18 @@ export default function ReviewPage() {
             <table className="review-table">
               <thead>
                 <tr>
+                  {status === "pending" && (
+                    <th className="review-table-checkbox-header">
+                      <input
+                        type="checkbox"
+                        checked={paginatedItems.length > 0 && selectedItems.size === paginatedItems.length}
+                        onChange={toggleSelectAll}
+                        className="review-table-checkbox"
+                        aria-label="Select all items on this page"
+                        title="Select all on this page"
+                      />
+                    </th>
+                  )}
                   <SortableHeader field="name">Name</SortableHeader>
                   <th>Normalized</th>
                   <SortableHeader field="area">Area</SortableHeader>
@@ -653,10 +792,33 @@ export default function ReviewPage() {
                 {paginatedItems.map(item => {
                   const notes = item.reviewNotes ?? "";
                   const isExpanded = expandedRows.has(item.competenceId);
+                  const isSelected = status === "pending" && selectedItems.has(item.competenceId);
                   const short = notes.length > 100 ? notes.slice(0, 100) + '…' : notes;
                   
                   return (
-                    <tr key={item.competenceId} className={isExpanded ? "expanded" : ""}>
+                    <tr 
+                      key={item.competenceId} 
+                      className={`${isExpanded ? "expanded" : ""} ${isSelected ? "review-table-row-selected" : ""} review-table-row-clickable`}
+                      onClick={(e) => {
+                        // Don't toggle if clicking on buttons, links, or expandable notes
+                        if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.col-notes.is-clickable')) return;
+                        toggleItemSelection(item.competenceId);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleItemSelection(item.competenceId);
+                        }
+                      }}
+                      aria-label={`Select ${item.name}`}
+                    >
+                      {status === "pending" && (
+                        <td className="review-table-checkbox-cell">
+                          {isSelected && <span className="review-table-selected-indicator">✓</span>}
+                        </td>
+                      )}
                       <td className="competence-name">{item.name}</td>
                       <td className="muted review-table-cell-small">{item.normalized || "—"}</td>
                       <td>{item.areaName || "—"}</td>
@@ -691,12 +853,12 @@ export default function ReviewPage() {
                 })}
                 {paginatedItems.length === 0 && filteredAndSortedItems.length === 0 && (
                   <tr>
-                    <td colSpan={status === "approved" || status === "rejected" ? 11 : 10}>No competences found.</td>
+                    <td colSpan={status === "pending" ? (status === "approved" || status === "rejected" ? 12 : 11) : (status === "approved" || status === "rejected" ? 11 : 10)}>No competences found.</td>
                   </tr>
                 )}
                 {paginatedItems.length === 0 && filteredAndSortedItems.length > 0 && (
                   <tr>
-                    <td colSpan={status === "approved" || status === "rejected" ? 11 : 10}>No competences found on this page. Try adjusting filters or going to a different page.</td>
+                    <td colSpan={status === "pending" ? (status === "approved" || status === "rejected" ? 12 : 11) : (status === "approved" || status === "rejected" ? 11 : 10)}>No competences found on this page. Try adjusting filters or going to a different page.</td>
                   </tr>
                 )}
               </tbody>
@@ -756,7 +918,12 @@ export default function ReviewPage() {
             <div className="note-modal-body">
               <p className="muted">
                 Please provide a short explanation for rejecting{" "}
-                <strong>{rejectModalItem.name}</strong> so others understand the decision.
+                <strong>
+                  {rejectModalItem.competenceId === null 
+                    ? `${selectedItems.size} competences` 
+                    : rejectModalItem.name}
+                </strong>{" "}
+                so others understand the decision.
               </p>
               <textarea
                 className="input"
