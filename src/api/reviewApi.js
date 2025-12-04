@@ -17,7 +17,7 @@ export async function getApproved(skip = 0, take = 50) {
 export async function getAllApproved() {
   const allCompetences = [];
   let skip = 0;
-  const take = 5000;
+  const take = 1000; 
   let hasMore = true;
 
   while (hasMore) {
@@ -45,7 +45,7 @@ export async function getRejected(skip = 0, take = 50) {
 export async function getAllPending() {
   const allCompetences = [];
   let skip = 0;
-  const take = 5000;
+  const take = 1000; 
   let hasMore = true;
 
   while (hasMore) {
@@ -66,7 +66,7 @@ export async function getAllPending() {
 export async function getAllRejected() {
   const allCompetences = [];
   let skip = 0;
-  const take = 5000;
+  const take = 1000; 
   let hasMore = true;
 
   while (hasMore) {

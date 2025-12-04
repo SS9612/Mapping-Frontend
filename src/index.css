@@ -583,6 +583,13 @@ tbody tr:hover { background: #f1f5f9; }
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-height: 80px;
+    justify-content: center;
+}
+
+.review-kpi-card-wide {
+    grid-column: span 2;
+    min-width: 300px;
 }
 
 .review-kpi-label {
@@ -596,6 +603,50 @@ tbody tr:hover { background: #f1f5f9; }
     font-size: 1.35rem;
     font-weight: 600;
     color: var(--color-text, #0f172a);
+    line-height: 1.2;
+}
+
+.review-kpi-subtext {
+    font-size: 0.7rem;
+    margin-top: 0.15rem;
+    color: #94a3b8;
+}
+
+.review-kpi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    text-align: left;
+}
+
+.review-kpi-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.review-kpi-list-rank {
+    font-weight: 600;
+    color: #64748b;
+    min-width: 1.5rem;
+}
+
+.review-kpi-list-name {
+    flex: 1;
+    color: #0f172a;
+}
+
+.review-kpi-list-count {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+@media (max-width: 900px) {
+    .review-kpi-card-wide {
+        grid-column: span 1;
+    }
 }
 
 .note-modal-header {

@@ -118,6 +118,11 @@ export default function ReviewPage() {
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(null);
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [totalCounts, setTotalCounts] = useState({
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,18 +250,44 @@ export default function ReviewPage() {
     };
   }, [items]);
 
-  const pendingCount = useMemo(
-    () => (status === "pending" ? filteredAndSortedItems.length : 0),
-    [status, filteredAndSortedItems]
-  );
-  const approvedCount = useMemo(
-    () => (status === "approved" ? filteredAndSortedItems.length : 0),
-    [status, filteredAndSortedItems]
-  );
-  const rejectedCount = useMemo(
-    () => (status === "rejected" ? filteredAndSortedItems.length : 0),
-    [status, filteredAndSortedItems]
-  );
+  // Load total counts for all statuses on mount
+  useEffect(() => {
+    async function loadCounts() {
+      try {
+        const [pending, approved, rejected] = await Promise.all([
+          getAllPending(),
+          getAllApproved(),
+          getAllRejected(),
+        ]);
+        setTotalCounts({
+          pending: pending?.length || 0,
+          approved: approved?.length || 0,
+          rejected: rejected?.length || 0,
+        });
+      } catch (err) {
+        console.error("Failed to load total counts:", err);
+      }
+    }
+    loadCounts();
+  }, []);
+
+  // Update counts when items change (for current status)
+  useEffect(() => {
+    if (status === "pending") {
+      setTotalCounts(prev => ({ ...prev, pending: items.length }));
+    } else if (status === "approved") {
+      setTotalCounts(prev => ({ ...prev, approved: items.length }));
+    } else if (status === "rejected") {
+      setTotalCounts(prev => ({ ...prev, rejected: items.length }));
+    }
+  }, [items, status]);
+
+  // Total counts from all statuses
+  const totalPendingCount = totalCounts.pending;
+  const totalApprovedCount = totalCounts.approved;
+  const totalRejectedCount = totalCounts.rejected;
+
+  // Statistics
   const averageConfidence = useMemo(() => {
     if (!filteredAndSortedItems.length) return null;
     const vals = filteredAndSortedItems
@@ -266,6 +297,34 @@ export default function ReviewPage() {
     const sum = vals.reduce((acc, c) => acc + c, 0);
     return sum / vals.length;
   }, [filteredAndSortedItems]);
+
+  const itemsReviewedToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return items.filter(item => {
+      if (!item.reviewedAt) return false;
+      const reviewedDate = new Date(item.reviewedAt);
+      reviewedDate.setHours(0, 0, 0, 0);
+      return reviewedDate.getTime() === today.getTime();
+    }).length;
+  }, [items]);
+
+  const topAreas = useMemo(() => {
+    const areaCounts = new Map();
+    items.forEach(item => {
+      if (item.areaName) {
+        areaCounts.set(item.areaName, (areaCounts.get(item.areaName) || 0) + 1);
+      }
+    });
+    return Array.from(areaCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count }));
+  }, [items]);
+
+  const lowConfidenceCount = useMemo(() => {
+    return items.filter(item => item.confidence != null && item.confidence < 0.4).length;
+  }, [items]);
 
   function handleSort(field) {
     if (sortField === field) {
@@ -518,23 +577,61 @@ export default function ReviewPage() {
 
       <div className="review-dashboard">
         <div className="card review-kpi-card">
-          <div className="review-kpi-label">Pending (this view)</div>
-          <div className="review-kpi-value">{pendingCount}</div>
+          <div className="review-kpi-label">Total Pending</div>
+          <div className="review-kpi-value">{totalPendingCount}</div>
+          {status === "pending" && filteredAndSortedItems.length !== totalPendingCount && (
+            <div className="review-kpi-subtext muted">
+              {filteredAndSortedItems.length} in current view
+            </div>
+          )}
         </div>
         <div className="card review-kpi-card">
-          <div className="review-kpi-label">Approved (this view)</div>
-          <div className="review-kpi-value">{approvedCount}</div>
+          <div className="review-kpi-label">Total Approved</div>
+          <div className="review-kpi-value">{totalApprovedCount}</div>
+          {status === "approved" && filteredAndSortedItems.length !== totalApprovedCount && (
+            <div className="review-kpi-subtext muted">
+              {filteredAndSortedItems.length} in current view
+            </div>
+          )}
         </div>
         <div className="card review-kpi-card">
-          <div className="review-kpi-label">Rejected (this view)</div>
-          <div className="review-kpi-value">{rejectedCount}</div>
+          <div className="review-kpi-label">Total Rejected</div>
+          <div className="review-kpi-value">{totalRejectedCount}</div>
+          {status === "rejected" && filteredAndSortedItems.length !== totalRejectedCount && (
+            <div className="review-kpi-subtext muted">
+              {filteredAndSortedItems.length} in current view
+            </div>
+          )}
         </div>
         <div className="card review-kpi-card">
-          <div className="review-kpi-label">Avg. confidence</div>
+          <div className="review-kpi-label">Reviewed Today</div>
+          <div className="review-kpi-value">{itemsReviewedToday}</div>
+        </div>
+        <div className="card review-kpi-card">
+          <div className="review-kpi-label">Avg. Confidence</div>
           <div className="review-kpi-value">
             {averageConfidence == null ? "—" : `${Math.round(averageConfidence * 100)}%`}
           </div>
+          {status === "pending" && (
+            <div className="review-kpi-subtext muted">
+              {lowConfidenceCount} low confidence
+            </div>
+          )}
         </div>
+        {topAreas.length > 0 && (
+          <div className="card review-kpi-card review-kpi-card-wide">
+            <div className="review-kpi-label">Top Areas</div>
+            <div className="review-kpi-list">
+              {topAreas.map((area, idx) => (
+                <div key={area.name} className="review-kpi-list-item">
+                  <span className="review-kpi-list-rank">{idx + 1}.</span>
+                  <span className="review-kpi-list-name">{area.name}</span>
+                  <span className="review-kpi-list-count muted">{area.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="review-toolbar">
