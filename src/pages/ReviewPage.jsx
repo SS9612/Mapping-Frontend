@@ -708,6 +708,36 @@ export default function ReviewPage() {
           </label>
         </div>
 
+        <div className="review-sort-controls">
+          <label className="muted review-sort-label">
+            Sort by:
+            <select
+              value={sortField}
+              onChange={(e) => {
+                setSortField(e.target.value);
+                setSortDirection("desc");
+                setPage(0);
+              }}
+              className="review-sort-select"
+            >
+              <option value="createdAt">Created Date</option>
+              <option value="name">Name</option>
+              <option value="confidence">Confidence</option>
+              <option value="area">Area</option>
+            </select>
+          </label>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+            }}
+            title={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}
+            aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}
+          >
+            {sortDirection === "asc" ? "↑" : "↓"}
+          </button>
+        </div>
+
         <div className="review-page-size">
           <label className="muted review-page-size-label">
             Page size:

@@ -450,6 +450,27 @@ tbody tr:hover { background: #f1f5f9; }
     box-shadow: 0 0 0 3px rgba(59,130,246,0.6);
 }
 
+.review-sort-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.review-sort-label {
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.review-sort-select {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #e6eef7;
+    background: #ffffff;
+    font-size: 0.9rem;
+}
+
 .review-page-size {
     margin-left: auto;
     display: flex;
